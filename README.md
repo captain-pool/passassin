@@ -1,2 +1,3 @@
-# passassin
-Assassinate Passwords using Deep Learning
+# Passassin
+Assassinate Passwords using Deep Learning.
+Repository for Pass-GRU-GAN
