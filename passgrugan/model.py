@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import os
-
+from .settings import settings
 #Architectural Notes:
 #1. Generator: GRU Units
 #    - Many to Many
@@ -36,32 +36,73 @@ class Generator:
         self.kp = kwargs.get("keep",0.7)
         self.disc = kwargs["disc"]
         self.real = kwargs["real"]
-        self.batch_size = tf.shape(z)[0]
+        self.batch_size = tf.shape(self.z)[0]
     def dense(self,X,out):
         with tf.name_scope("dense"):
-            w = tf.Variable(tf.random_normal([X.get_shape()[-1].value,out])
+            w = tf.Variable(tf.random_normal([X.get_shape()[-1].value,out]))
             b = tf.Variable(tf.random_normal([out]))
         return tf.matmul(X,w)+b
-    def use_disc(self,input_):
-        self.disc.set_input(input_)
-        disc_out = self.disc.build() # include variable reuse in build method of disc
+    def use_disc(self,input_):       
+        disc_out = self.disc.set_input(input_).build(reuse = True) # include variable reuse in build method of disc
         return disc_out
-    def optimize(self,lossTensor,learning_rate = 0.01):
-        return tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(lossTensor,var_list = self.train_vars)
+    def optimize(self,learning_rate = 0.01):
+        return tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.loss,var_list = self.train_vars)
     def build(self):
         self.z = tf.transpose(self.z,[1,0,2])
         with tf.variable_scope("GEN"):
             with tf.name_scope("GRU"):
-                cells = [tf.nn.rnn_cell.GRUCell(self.l1),tf.nn.rnn_cell.GRUCell(self.l2)]
-                cells = list(map(lambda x:tf.nn.rnn_cell.DropoutWrapper(x,output_keep_prob = self.kp))
+                cells = [tf.nn.rnn_cell.GRUCell(self.l1,activation = tf.nn.elu),tf.nn.rnn_cell.GRUCell(self.l2,activation = tf.nn.elu)]
+                cells = list(map(lambda x:tf.nn.rnn_cell.DropoutWrapper(x,output_keep_prob = self.kp),cells))
                 rnn_cell = tf.nn.rnn_cell.MultiRNNCell(cells)
                 out,state = tf.nn.dynamic_rnn(rnn_cell,self.z,dtype = tf.float32,time_major = True)
             out = tf.reshape(out,[-1,self.l2])
-            out = tf.reshape(self.dense(out,self.l2),[-1,self.z.get_shape()[1].value,self.l2])
-            out = tf.nn.sigmoid(out,axis = 1,name = "output") # To Find Probability Distribution over each batch, which starts from axis=1
-       self.train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope="GEN")
-       self.output = out
-       disc_out = self.use_disc(out)
-       self.adv_out = disc_out
-       return self
-
+            out = self.dense(out,self.l2)#),[-1,self.z.get_shape()[1].value,self.l2])
+            targetFeature = self.z.get_shape()[-1].value#self.z.get_shape()[1:].num_elements()
+            out = tf.reshape(self.dense(out,targetFeature),[-1,self.z.get_shape()[1].value,self.z.get_shape()[-1].value])
+            out = tf.nn.softmax(out,axis = 1,name = "output") # To Find Probability Distribution over each batch, which starts from axis=1
+            out = tf.transpose(out,[1,0,2])
+        self.train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope="GEN")
+        self.output = out
+        disc_out = self.use_disc(out)
+        self.adv_out = disc_out
+        self.loss = -tf.reduce_mean(disc_out)
+        return self
+class Discriminator:
+    def __init__(self,**kwargs):
+        '''
+        Params:
+            L1(int): Number of GRU Units in Layer 1
+            L2(int): Number of GRU UNits in Layer 2
+              input: Tensor having inputs to Discriminator
+                     Shape: [Batch_Size, Timesteps, Size]
+               keep: Keep Probability for Dropout Layers
+        '''
+        self.L1 = kwargs.get("L1",128)
+        self.L2 = kwargs.get("L2",32)
+        self.input = kwargs["input"]
+        self.kp = kwargs.get("keep",0.7)
+        self.batch_size = tf.shape(self.input)[0]
+    def set_input(self,tensor):
+        assert self.input.get_shape() == tensor.get_shape()
+        self.input = tensor
+        return self
+    def dense(self,X,out):
+        w = tf.Variable(tf.random_normal([X.get_shape()[-1].value,out]))
+        b = tf.Variable(tf.random_normal([out]))
+        return tf.matmul(X,w)+b
+    def build(self,reuse = False):
+        with tf.variable_scope("DISC",reuse = tf.AUTO_REUSE):
+            with tf.name_scope("GRU"):
+                cells = [tf.nn.rnn_cell.GRUCell(self.L1,activation = tf.nn.elu),tf.nn.rnn_cell.GRUCell(self.L2,activation = tf.nn.elu)]
+                cells = list(map(lambda x:tf.nn.rnn_cell.DropoutWrapper(x,output_keep_prob = self.kp),cells))
+                rnn_cell = tf.nn.rnn_cell.MultiRNNCell(cells)
+                out,state = tf.nn.dynamic_rnn(rnn_cell,self.input,dtype = tf.float32)
+            out = tf.transpose(out,[1,0,2])
+            out = tf.gather(out,out.get_shape()[0].value-1)
+            out = tf.nn.sigmoid(self.dense(out,128))
+            out = tf.nn.sigmoid(self.dense(out,1))
+        if not reuse:
+            self.train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+            self.output = out
+            return self
+        return out
