@@ -90,13 +90,15 @@ class Discriminator:
         w = tf.Variable(tf.random_normal([X.get_shape()[-1].value,out]))
         b = tf.Variable(tf.random_normal([out]))
         return tf.matmul(X,w)+b
+    def optimize(self,lossTensor,learning_rate = 0.01):
+        return tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(lossTensor,var_list = self.train_vars)
     def build(self,reuse = False):
         with tf.variable_scope("DISC",reuse = tf.AUTO_REUSE):
             with tf.name_scope("GRU"):
                 cells = [tf.nn.rnn_cell.GRUCell(self.L1,activation = tf.nn.elu),tf.nn.rnn_cell.GRUCell(self.L2,activation = tf.nn.elu)]
                 cells = list(map(lambda x:tf.nn.rnn_cell.DropoutWrapper(x,output_keep_prob = self.kp),cells))
                 rnn_cell = tf.nn.rnn_cell.MultiRNNCell(cells)
-                out,state = tf.nn.dynamic_rnn(rnn_cell,self.input,dtype = tf.float32)
+                out,state = tf.nn.static_rnn(rnn_cell,tf.unstack(self.input),dtype = tf.float32)
             out = tf.transpose(out,[1,0,2])
             out = tf.gather(out,out.get_shape()[0].value-1)
             out = tf.nn.sigmoid(self.dense(out,128))
