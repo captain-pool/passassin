@@ -57,10 +57,12 @@ class Generator:
                 out,state = tf.nn.dynamic_rnn(rnn_cell,self.z,dtype = tf.float32,time_major = True)
             out = tf.reshape(out,[-1,self.l2])
             out = self.dense(out,self.l2)#),[-1,self.z.get_shape()[1].value,self.l2])
+            self.z = tf.transpose(self.z,[1,0,2])
             targetFeature = self.z.get_shape()[-1].value#self.z.get_shape()[1:].num_elements()
+            
             out = tf.reshape(self.dense(out,targetFeature),[-1,self.z.get_shape()[1].value,self.z.get_shape()[-1].value])
             out = tf.nn.softmax(out,axis = 1,name = "output") # To Find Probability Distribution over each batch, which starts from axis=1
-            out = tf.transpose(out,[1,0,2])
+            #out = tf.transpose(out,[1,0,2])
         self.train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope="GEN")
         self.output = out
         disc_out = self.use_disc(out)
@@ -83,8 +85,8 @@ class Discriminator:
         self.kp = kwargs.get("keep",0.7)
         self.batch_size = tf.shape(self.input)[0]
     def set_input(self,tensor):
-        assert self.input.get_shape() == tensor.get_shape()
-        self.input = tensor
+        assert self.input.get_shape()[1:] == tensor.get_shape()[1:]
+        self.input_ = tensor
         return self
     def dense(self,X,out):
         w = tf.Variable(tf.random_normal([X.get_shape()[-1].value,out]))
@@ -93,17 +95,23 @@ class Discriminator:
     def optimize(self,lossTensor,learning_rate = 0.01):
         return tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(lossTensor,var_list = self.train_vars)
     def build(self,reuse = False):
+        if not reuse:
+            inp = self.input
+        else:
+            inp = self.input_
         with tf.variable_scope("DISC",reuse = tf.AUTO_REUSE):
             with tf.name_scope("GRU"):
                 cells = [tf.nn.rnn_cell.GRUCell(self.L1,activation = tf.nn.elu),tf.nn.rnn_cell.GRUCell(self.L2,activation = tf.nn.elu)]
                 cells = list(map(lambda x:tf.nn.rnn_cell.DropoutWrapper(x,output_keep_prob = self.kp),cells))
                 rnn_cell = tf.nn.rnn_cell.MultiRNNCell(cells)
-                out,state = tf.nn.static_rnn(rnn_cell,tf.unstack(self.input),dtype = tf.float32)
-            out = tf.transpose(out,[1,0,2])
-            out = tf.gather(out,out.get_shape()[0].value-1)
+                inp = tf.transpose(inp,[1,0,2])
+                out,state = tf.nn.static_rnn(rnn_cell,tf.unstack(inp),dtype = tf.float32)
+            out = out[-1]
             out = tf.nn.sigmoid(self.dense(out,128))
             out = tf.nn.sigmoid(self.dense(out,1))
+            inp = tf.transpose(inp,[1,0,2])
         if not reuse:
+            self.input = inp
             self.train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
             self.output = out
             return self

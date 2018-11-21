@@ -1,7 +1,7 @@
 import passgrugan as pgr
 import tensorflow as tf
 tf.reset_default_graph()
-d1,d2,d3 = tf.random_normal([10,21,200]),tf.random_normal([10,21,200]),tf.random_normal([10,21,200])
+d1,d2,d3 = tf.placeholder(tf.float32,[None,21,200]),tf.placeholder(tf.float32,[None,21,200]),tf.placeholder(tf.float32,[None,21,200])
 disc = pgr.Discriminator(input = d1).build()
 print("INITIATE DISCRIMINATOR...[PASSED]")
 gen = pgr.Generator(disc = disc,real = d2,noise = d3).build()
