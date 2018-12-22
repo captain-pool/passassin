@@ -5,6 +5,7 @@ import numpy as np
 import os
 pgr.settings.init()
 FLAGS = flags.FLAGS
+flags.DEFINE_string("summary","logs","Folder to save the summaries for Tensorboard")
 flags.DEFINE_string("dataset","rockyou.txt","Dataset to train on. [DEFAULT: rockyou.txt]")
 flags.DEFINE_string("modelfile","saved.ckpt","Checkpoint file to load. [DEFAULT: saved.ckpt]")
 flags.DEFINE_integer("epochs",2,"Number of Epochs to Train. [DEFAULT: 2]")
@@ -17,11 +18,15 @@ def main(argv):
     BATCH_SIZE = FLAGS.batch
     TIMESTEPS = FLAGS.timestep
     EPOCH = FLAGS.epochs
+    SUMMARY = os.path.abspath(os.path.expanduser(FLAGS.summary))
+    if SUMMARY[-1] == "/" or SUMMARY[-1] =="\\":
+        SUMMARY = SUMMARY[:-1]
     print_freq = FLAGS.freq
     DEBUG = FLAGS.test
     MODELFILE = os.path.abspath(FLAGS.modelfile)
     load = False
-
+    if os.path.basename(SUMMARY) not in os.listdir(os.path.dirname(SUMMARY)):
+        os.mkdir(SUMMARY)
     if os.path.basename(MODELFILE) in os.listdir(os.path.dirname(MODELFILE)): 
         if os.path.getsize(MODELFILE)>0:
             load = True
@@ -37,13 +42,16 @@ def main(argv):
     disc = pgr.Discriminator(input = disc_input).build()
     print("[PASSED]\nINITIATE GENERATOR...",end = "")
     generator = pgr.Generator(disc = disc,real = real,noise = noise).build()
+    tf.summary.scalar("gen_loss",generator.loss)
     print("[PASSED]\nGP LOSS WORKING...",end = "")
     discLoss = pgr.losses.wasserstein_gp(real,generator.output,generator.adv_out,disc = disc)
+    tf.summary.scalar("disc_loss",discLoss)
     print("[PASSED]\nGENERATOR OPTMIZER...",end = "")
     genOptimize = generator.optimize()
     print("[PASSED]\nDISCRIMINATOR OPTIMIZER...",end = "")
     discOptimize = disc.optimize(discLoss)
     print("[PASSED]")
+    merged = tf.summary.merge_all()
     saver = tf.train.Saver()
     with tf.Session() as sess:
         print("INITIATE VARIABLES...",end = "")
@@ -51,6 +59,7 @@ def main(argv):
             sess.run(tf.global_variables_initializer())
         else:
             saver.restore(sess,MODELFILE)
+        writer = tf.summary.FileWriter(os.path.join(SUMMARY,"train"),sess.graph)
         print("[DONE]")
         _epoch = 1
         print("Starting Training...")
@@ -72,7 +81,9 @@ def main(argv):
                     _,fake,_gLoss = sess.run([genOptimize,generator.output,generator.loss],feed_dict={real:batch,noise:Z})
                     if DEBUG:
                         print("[DONE]\nOPTIMIZING DISCRIMINATOR...",end = "")
-                    _,_dLoss = sess.run([discOptimize,discLoss],feed_dict={disc_input:fake,real:batch,noise:Z})
+                    m,_,_dLoss = sess.run([merged,discOptimize,discLoss],feed_dict={disc_input:fake,real:batch,noise:Z})
+                    writer.add_summary(m,batch_num)
+                    print(batch_num)
                     if DEBUG:
                         print("[DONE]\nTEST BUILD PASSED!")
                         print(fake.shape)

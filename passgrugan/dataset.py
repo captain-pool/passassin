@@ -82,39 +82,51 @@ class Data:
                 return result
             result+=1
     #Generting unique numbers by simulating biased die roll
-
-    def prng(self,length):
-        self.l = np.full((length,),1./length)
+    def fill(self):
+        
+    def biased_die_method(self):
+        self.l = self.fill()
         while not np.all(self.l==0.0):
             r = self.roll(self.l)-1
             if length>1:
-                self.l*=float(length)/(length-1)
-                length-=1
+                self.l*=float(self._length)/(self._length-1)
+                self._length-=1
             self.l[r] = 0
             yield r
-
+    def uniform_random_draw(self):
+        self.ht = {}
+        r = random.randomrange(0,self._raw.__len__(),1)
+        while True:
+            if not self.ht.get(r,None):
+                self.ht[r] = 1
+                return r
     def __next__(self):
         iterCount = 0
+        counter = 0
         tensorList = []
-        length = len(self._raw)
-        prng_gen = self.prng(length)
+        self._length = len(self._raw)
+        prng_gen = self.prng()
         while self.outerLoop <self._epoch:
             while True:
                 try:
                     self.idx = next(prng_gen)
+                    print(self.idx)
                 except StopIteration:
                     break
                 finalBytes = self._raw[self.idx:self.idx+self._ws]+self._raw[:max(0,-1*(length-self.idx-self._ws))]
                 _,l = self.encode(finalBytes)
                 # For Test
+                print(iterCount)
                 tensorList.append(tf.one_hot(l,self.vocab_size))
                 iterCount += 1
                 if iterCount%self.batch_size == 0:
+                    counter+=1
                     iterCount = 0
                     v = tf.stack(tensorList,axis = 0,name = "data")
                     tensorList = []
-                    return v,None,self.idx
+                    return v,None,counter
             self.idx = -1
+            counter = 0
             self.outerLoop += 1
             return None, (self.outerLoop+1)
 
