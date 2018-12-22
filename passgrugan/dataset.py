@@ -12,6 +12,8 @@ class Data:
         self._epoch = epoch
         self.outerLoop = 0
         self.idx = -1
+        self.counter = 0
+        self.ht = {}
     def read(self):
         if self._v:
             print("Opening File: {}".format(os.path.basename(self._filename)),end = " ")
@@ -42,6 +44,8 @@ class Data:
             self.vocab_size = len(vocab.keys())
         if self._v:
             print("[DONE]")
+        self._length = len(self._raw)
+        self.prng_gen = self.prng()
         return self
     def encode(self,string):
         encoded = []
@@ -69,8 +73,7 @@ class Data:
         for i in l:
             data = [np.argmax(j) for j in i]
             s = "".join([self._vocab_T.get(x,None) for x in data])
-            lst.append(s)
-        return lst
+            yield s
     #Simulating Rolling a Biased Die    
     def roll(self,massDist):
         randRoll = random.random() # in [0,1)
@@ -83,50 +86,54 @@ class Data:
             result+=1
     #Generting unique numbers by simulating biased die roll
     def fill(self):
-        
+        l = np.ones(self.raw.__len__(),dtype = np.float32)
+        l[self.ht.keys()] = 0
+        f = np.count_nonzero(l>0)
+        self._length = f
+        l = l/f
+        self.l = l
     def biased_die_method(self):
-        self.l = self.fill()
+        self.fill()
         while not np.all(self.l==0.0):
             r = self.roll(self.l)-1
-            if length>1:
+            if self._length>1:
                 self.l*=float(self._length)/(self._length-1)
                 self._length-=1
             self.l[r] = 0
-            yield r
+            self.ht[r] = 1
+            return r
     def uniform_random_draw(self):
         self.ht = {}
-        r = random.randomrange(0,self._raw.__len__(),1)
-        while True:
+        r = random.randrange(0,self._raw.__len__(),1)
+        for _ in range(30):
             if not self.ht.get(r,None):
                 self.ht[r] = 1
                 return r
+        return self.biased_die_method()
+    def prng(self):
+        while abs(len(self.ht.keys())-self._raw.__len__())>5:
+            v = self.uniform_random_draw()
+            yield v
     def __next__(self):
         iterCount = 0
-        counter = 0
         tensorList = []
-        self._length = len(self._raw)
-        prng_gen = self.prng()
         while self.outerLoop <self._epoch:
             while True:
                 try:
-                    self.idx = next(prng_gen)
-                    print(self.idx)
+                    self.idx = next(self.prng_gen)
                 except StopIteration:
-                    break
-                finalBytes = self._raw[self.idx:self.idx+self._ws]+self._raw[:max(0,-1*(length-self.idx-self._ws))]
+                   break
+                finalBytes = self._raw[self.idx:self.idx+self._ws]+self._raw[:max(0,-1*(len(self._raw)-self.idx-self._ws))]
                 _,l = self.encode(finalBytes)
                 # For Test
-                print(iterCount)
                 tensorList.append(tf.one_hot(l,self.vocab_size))
                 iterCount += 1
                 if iterCount%self.batch_size == 0:
-                    counter+=1
-                    iterCount = 0
+                    self.counter+=1
                     v = tf.stack(tensorList,axis = 0,name = "data")
                     tensorList = []
-                    return v,None,counter
-            self.idx = -1
-            counter = 0
+                    return v,None,self.counter
             self.outerLoop += 1
+            self.counter = 0
             return None, (self.outerLoop+1)
 

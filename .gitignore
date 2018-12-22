@@ -3,3 +3,5 @@ __pycache__/
 .*.swo
 rockyou.txt
 test.txt
+logs/
+events.*
