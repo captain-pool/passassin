@@ -71,16 +71,39 @@ class Data:
             s = "".join([self._vocab_T.get(x,None) for x in data])
             lst.append(s)
         return lst
+    
+    def roll(self,massDist):
+        randRoll = random.random() # in [0,1)
+        sum = 0
+        result = 1
+        for mass in massDist:
+            sum += mass
+            if randRoll < sum:
+                return result
+            result+=1
+    def prng(self,length):
+        self.l = np.full((length,),1./length)
+        while not np.all(self.l==0.0):
+            r = self.roll(self.l)-1
+            if length>1:
+                self.l*=float(length)/(length-1)
+                length-=1
+            self.l[r] = 0
+            yield r
+
+
     def __next__(self):
         iterCount = 0
         tensorList = []
         length = len(self._raw)
+        prng_gen = self.prng(length)
         while self.outerLoop <self._epoch:
             while True:
-                self.idx = self.idx+1
-                if (self.idx+self._ws) >=length:
+                try:
+                    self.idx = next(prng_gen)
+                except StopIteration:
                     break
-                finalBytes = self._raw[self.idx:self.idx+self._ws]
+                finalBytes = self._raw[self.idx:self.idx+self._ws]+self._raw[:max(0,-1*(length-self.idx-self._ws))]
                 _,l = self.encode(finalBytes)
                 # For Test
                 tensorList.append(tf.one_hot(l,self.vocab_size))
@@ -93,5 +116,4 @@ class Data:
             self.idx = -1
             self.outerLoop += 1
             return None, (self.outerLoop+1)
-        raise StopIteration
 

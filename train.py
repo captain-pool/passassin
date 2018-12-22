@@ -53,6 +53,8 @@ def main(argv):
             saver.restore(sess,MODELFILE)
         print("[DONE]")
         _epoch = 1
+        print("Starting Training...")
+
         while True:
             try:
                 l = next(data)
