@@ -90,7 +90,6 @@ def main(argv):
                         print(next(data.decode(fake)))
                         sess.close()
                         exit(0)
-                    print("Batch Num: ",batch_num)
                     if batch_num%print_freq == 0:
                         print("EPOCH: %d\tGENERATOR LOSS: %f\tDISCRIMINATOR LOSS: %f"%(_epoch,_gLoss,_dLoss))
                     l = next(data)
