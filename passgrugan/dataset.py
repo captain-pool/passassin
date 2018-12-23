@@ -86,11 +86,10 @@ class Data:
             result+=1
     #Generting unique numbers by simulating biased die roll
     def fill(self):
-        l = np.ones(self.raw.__len__(),dtype = np.float32)
+        f = self.raw.__len__()-self.ht.keys().__len__()
+        l = np.full(self.raw.__len__(),1./f,dtype = np.float32)
         l[self.ht.keys()] = 0
-        f = np.count_nonzero(l>0)
         self._length = f
-        l = l/f
         self.l = l
     def biased_die_method(self):
         self.fill()
