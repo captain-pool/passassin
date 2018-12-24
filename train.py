@@ -3,15 +3,16 @@ from absl import flags,app
 import tensorflow as tf
 import numpy as np
 import os
+import tqdm
 pgr.settings.init()
 FLAGS = flags.FLAGS
 flags.DEFINE_string("summary","logs","Folder to save the summaries for Tensorboard")
-flags.DEFINE_string("dataset","rockyou.txt","Dataset to train on. [DEFAULT: rockyou.txt]")
-flags.DEFINE_string("modelfile","saved.ckpt","Checkpoint file to load. [DEFAULT: saved.ckpt]")
-flags.DEFINE_integer("epochs",2,"Number of Epochs to Train. [DEFAULT: 2]")
-flags.DEFINE_integer("batch",100,"Length of each batch. [DEFAULT: 100]")
-flags.DEFINE_integer("timestep",10,"Length of each sequence. [DEFAULT: 10]")
-flags.DEFINE_integer("freq",100,"Frequency of printing of each training step. [DEFAULT: 100]")
+flags.DEFINE_string("dataset","rockyou.txt","Dataset to train on.")
+flags.DEFINE_string("modelfile","saved.ckpt","Checkpoint file to load.")
+flags.DEFINE_integer("epochs",2,"Number of Epochs to Train.")
+flags.DEFINE_integer("batch",100,"Length of each batch.")
+flags.DEFINE_integer("timestep",10,"Length of each sequence.")
+flags.DEFINE_integer("freq",100,"Frequency of printing of each training step.")
 flags.DEFINE_boolean("test",False,"run tester script")
 def main(argv):
     del argv
@@ -42,10 +43,10 @@ def main(argv):
     disc = pgr.Discriminator(input = disc_input).build()
     print("[PASSED]\nINITIATE GENERATOR...",end = "")
     generator = pgr.Generator(disc = disc,real = real,noise = noise).build()
-    tf.summary.scalar("gen_loss",generator.loss)
+    s_gloss = tf.summary.scalar("gen_loss",generator.loss)
     print("[PASSED]\nGP LOSS WORKING...",end = "")
     discLoss = pgr.losses.wasserstein_gp(real,generator.output,generator.adv_out,disc = disc)
-    tf.summary.scalar("disc_loss",discLoss)
+    s_dloss = tf.summary.scalar("disc_loss",discLoss)
     print("[PASSED]\nGENERATOR OPTMIZER...",end = "")
     genOptimize = generator.optimize()
     print("[PASSED]\nDISCRIMINATOR OPTIMIZER...",end = "")
@@ -63,7 +64,7 @@ def main(argv):
         print("[DONE]")
         _epoch = 1
         print("Starting Training...")
-
+        pbar = tqdm.tqdm(total = 2798430)
         while True:
             try:
                 l = next(data)
@@ -78,11 +79,12 @@ def main(argv):
                     Z = np.random.normal(size = batch.shape)
                     if DEBUG:
                         print("[DONE]\nOPTMIZING GENERATOR...",end = "")
-                    _,fake,_gLoss = sess.run([genOptimize,generator.output,generator.loss],feed_dict={real:batch,noise:Z})
+                    gl,_,fake,_gLoss = sess.run([s_gloss,genOptimize,generator.output,generator.loss],feed_dict={real:batch,noise:Z})
                     if DEBUG:
                         print("[DONE]\nOPTIMIZING DISCRIMINATOR...",end = "")
-                    m,_,_dLoss = sess.run([merged,discOptimize,discLoss],feed_dict={disc_input:fake,real:batch,noise:Z})
-                    writer.add_summary(m,batch_num)
+                    dl,_,_dLoss = sess.run([s_dloss,discOptimize,discLoss],feed_dict={disc_input:fake,real:batch,noise:Z})
+                    writer.add_summary(gl,batch_num)
+                    writer.add_summary(dl,batch_num)
                     if DEBUG:
                         print("[DONE]\nTEST BUILD PASSED!")
                         print(fake.shape)
@@ -99,7 +101,9 @@ def main(argv):
                     tensor = l[0]
                     epoch = l[1]
                     batch_num = l[2]
+                    tqdm.update(1)
             except StopIteration:
+                tqdm.close()
                 save_path = saver.save(sess,MODELFILE)
                 print("CHECKPOINT SAVED AT: %s"%save_path)
 if __name__=="__main__":

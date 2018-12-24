@@ -4,4 +4,4 @@ __pycache__/
 rockyou.txt
 test.txt
 logs/
-events.*
+events*
