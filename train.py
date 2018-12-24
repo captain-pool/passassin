@@ -101,7 +101,7 @@ def main(argv):
                     tensor = l[0]
                     epoch = l[1]
                     batch_num = l[2]
-                    tqdm.update(1)
+                    pbar.update(1)
             except StopIteration:
                 tqdm.close()
                 save_path = saver.save(sess,MODELFILE)
