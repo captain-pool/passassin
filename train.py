@@ -61,10 +61,10 @@ def main(argv):
             sess.run(tf.global_variables_initializer())
         else:
             saver.restore(sess,MODELFILE)
-                print("[DONE]")
+        print("[DONE]")
         _epoch = 1
         print("Starting Training...")
-        pbar = tqdm.tqdm(total = 2798430)
+        #pbar = tqdm.tqdm(total = 2798430)
         while True:
             try:
                 l = next(data)
@@ -85,8 +85,8 @@ def main(argv):
                     m = sess.run(merged,feed_dict={disc_input:fake,noise:Z,real:batch})
                     if DEBUG:
                         print(m,batch_num)
-                    else:
-                        pbar.update(1)
+         #           else:
+         #               pbar.update(1)
                     writer.add_summary(m,batch_num)
                     writer.flush()
                     if DEBUG:

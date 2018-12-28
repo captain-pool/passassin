@@ -5,3 +5,4 @@ rockyou.txt
 test.txt
 logs/
 events*
+*.log
