@@ -64,7 +64,6 @@ def main(argv):
         print("[DONE]")
         _epoch = 1
         print("Starting Training...")
-        #pbar = tqdm.tqdm(total = 2798430)
         while True:
             try:
                 l = next(data)
@@ -85,8 +84,6 @@ def main(argv):
                     m = sess.run(merged,feed_dict={disc_input:fake,noise:Z,real:batch})
                     if DEBUG:
                         print(m,batch_num)
-         #           else:
-         #               pbar.update(1)
                     writer.add_summary(m,batch_num)
                     writer.flush()
                     if DEBUG:
@@ -105,7 +102,6 @@ def main(argv):
                     tensor = l[0]
                     epoch = l[1]
                     batch_num = l[2]
-                #    pbar.update(1)
             except StopIteration:
                 tqdm.close()
                 save_path = saver.save(sess,MODELFILE)

@@ -82,7 +82,7 @@ class Discriminator:
         self.L1 = kwargs.get("L1",128)
         self.L2 = kwargs.get("L2",32)
         self.input = kwargs["input"]
-        self.kp = kwargs.get("keep",0.7)
+        self.kp = kwargs.get("keep",0.8)
         self.batch_size = tf.shape(self.input)[0]
     def set_input(self,tensor):
         assert self.input.get_shape()[1:] == tensor.get_shape()[1:]
