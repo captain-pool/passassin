@@ -55,20 +55,19 @@ def main(argv):
     merged = tf.summary.merge_all()
     saver = tf.train.Saver()
     with tf.Session() as sess:
+        writer = tf.summary.FileWriter(os.path.join(SUMMARY,"train"),sess.graph)
         print("INITIATE VARIABLES...",end = "")
         if not load:
             sess.run(tf.global_variables_initializer())
         else:
             saver.restore(sess,MODELFILE)
-        writer = tf.summary.FileWriter(os.path.join(SUMMARY,"train"),sess.graph)
-        print("[DONE]")
+                print("[DONE]")
         _epoch = 1
         print("Starting Training...")
         pbar = tqdm.tqdm(total = 2798430)
         while True:
             try:
                 l = next(data)
-                print(len(l))
                 if len(l)==3:
                     tensor = l[0]
                     batch_num = l[2]
@@ -79,12 +78,17 @@ def main(argv):
                     Z = np.random.normal(size = batch.shape)
                     if DEBUG:
                         print("[DONE]\nOPTMIZING GENERATOR...",end = "")
-                    gl,_,fake,_gLoss = sess.run([s_gloss,genOptimize,generator.output,generator.loss],feed_dict={real:batch,noise:Z})
+                    _,fake,_gLoss = sess.run([genOptimize,generator.output,generator.loss],feed_dict={real:batch,noise:Z})
                     if DEBUG:
                         print("[DONE]\nOPTIMIZING DISCRIMINATOR...",end = "")
-                    dl,_,_dLoss = sess.run([s_dloss,discOptimize,discLoss],feed_dict={disc_input:fake,real:batch,noise:Z})
-                    writer.add_summary(gl,batch_num)
-                    writer.add_summary(dl,batch_num)
+                    _,_dLoss = sess.run([discOptimize,discLoss],feed_dict={disc_input:fake,real:batch,noise:Z})
+                    m = sess.run(merged,feed_dict={disc_input:fake,noise:Z,real:batch})
+                    if DEBUG:
+                        print(m,batch_num)
+                    else:
+                        pbar.update(1)
+                    writer.add_summary(m,batch_num)
+                    writer.flush()
                     if DEBUG:
                         print("[DONE]\nTEST BUILD PASSED!")
                         print(fake.shape)
@@ -101,10 +105,11 @@ def main(argv):
                     tensor = l[0]
                     epoch = l[1]
                     batch_num = l[2]
-                    pbar.update(1)
+                #    pbar.update(1)
             except StopIteration:
                 tqdm.close()
                 save_path = saver.save(sess,MODELFILE)
                 print("CHECKPOINT SAVED AT: %s"%save_path)
+    writer.close()
 if __name__=="__main__":
     app.run(main)
