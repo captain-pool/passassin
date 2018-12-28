@@ -51,12 +51,12 @@ class Generator:
         self.z = tf.transpose(self.z,[1,0,2])
         with tf.variable_scope("GEN"):
             with tf.name_scope("GRU"):
-                cells = [tf.nn.rnn_cell.GRUCell(self.l1,activation = tf.nn.elu),tf.nn.rnn_cell.GRUCell(self.l2,activation = tf.nn.elu)]
+                cells = [tf.nn.rnn_cell.GRUCell(self.l1),tf.nn.rnn_cell.GRUCell(self.l2)]
                 cells = list(map(lambda x:tf.nn.rnn_cell.DropoutWrapper(x,output_keep_prob = self.kp),cells))
                 rnn_cell = tf.nn.rnn_cell.MultiRNNCell(cells)
                 out,state = tf.nn.dynamic_rnn(rnn_cell,self.z,dtype = tf.float32,time_major = True)
             out = tf.reshape(out,[-1,self.l2])
-            out = self.dense(out,self.l2)#),[-1,self.z.get_shape()[1].value,self.l2])
+            out = tf.nn.relu(self.dense(out,self.l2))#),[-1,self.z.get_shape()[1].value,self.l2])
             self.z = tf.transpose(self.z,[1,0,2])
             targetFeature = self.z.get_shape()[-1].value#self.z.get_shape()[1:].num_elements()
             
@@ -88,9 +88,9 @@ class Discriminator:
         assert self.input.get_shape()[1:] == tensor.get_shape()[1:]
         self.input_ = tensor
         return self
-    def dense(self,X,out):
-        w = tf.Variable(tf.random_normal([X.get_shape()[-1].value,out]))
-        b = tf.Variable(tf.random_normal([out]))
+    def dense(self,X,out,name):
+        w = tf.get_variable("w_"+name,[X.get_shape()[-1].value,out])
+        b = tf.get_variable("b_"+name,[out])
         return tf.matmul(X,w)+b
     def optimize(self,lossTensor,learning_rate = 0.01):
         return tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(lossTensor,var_list = self.train_vars)
@@ -99,20 +99,20 @@ class Discriminator:
             inp = self.input
         else:
             inp = self.input_
-        with tf.variable_scope("DISC",reuse = tf.AUTO_REUSE):
+        with tf.variable_scope("DISC",reuse = reuse):
             with tf.name_scope("GRU"):
-                cells = [tf.nn.rnn_cell.GRUCell(self.L1,activation = tf.nn.elu),tf.nn.rnn_cell.GRUCell(self.L2,activation = tf.nn.elu)]
+                cells = [tf.nn.rnn_cell.GRUCell(self.L1,reuse = reuse),tf.nn.rnn_cell.GRUCell(self.L2,reuse = reuse)]
                 cells = list(map(lambda x:tf.nn.rnn_cell.DropoutWrapper(x,output_keep_prob = self.kp),cells))
                 rnn_cell = tf.nn.rnn_cell.MultiRNNCell(cells)
                 inp = tf.transpose(inp,[1,0,2])
                 out,state = tf.nn.static_rnn(rnn_cell,tf.unstack(inp),dtype = tf.float32)
             out = out[-1]
-            out = tf.nn.sigmoid(self.dense(out,128))
-            out = tf.nn.sigmoid(self.dense(out,1))
+            out = tf.nn.relu(self.dense(out,128,"h1"))
+            out = tf.nn.sigmoid(self.dense(out,1,"h2"))
             inp = tf.transpose(inp,[1,0,2])
         if not reuse:
             self.input = inp
-            self.train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+            self.train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope = "DISC")
             self.output = out
             return self
         return out
