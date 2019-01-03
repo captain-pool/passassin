@@ -15,8 +15,10 @@ flags.DEFINE_integer("timestep",10,"Length of each sequence.")
 flags.DEFINE_integer("freq",100,"Frequency of printing of each training step.")
 flags.DEFINE_boolean("test",False,"run tester script")
 flags.DEFINE_boolean("gpu",False,"Run on GPU")
-
-def checkpoint(saver,sess,MODELFILE):
+flags.DEFINE_boolean("check",False,"Save Checkpoint at every print step")
+def checkpoint(FLAGS,saver,sess,MODELFILE):
+    if not FLAGS.check:
+        return
     try:
         os.remove(MODELFILE)
     except:
@@ -108,7 +110,7 @@ def main(argv):
                         exit(0)
                     if batch_num%print_freq == 0:
                         print("EPOCH: %d\tGENERATOR LOSS: %f\tDISCRIMINATOR LOSS: %f"%(_epoch,_gLoss,_dLoss))
-                        checkpoint(saver,sess,MODELFILE)  
+                        checkpoint(FLAGS,saver,sess,MODELFILE)  
                     l = next(data)
                     if len(l)==2:
                         _epoch = l[1]
