@@ -46,7 +46,7 @@ class Generator:
         disc_out = self.disc.set_input(input_).build(reuse = True) # include variable reuse in build method of disc
         return disc_out
     def optimize(self,learning_rate = 0.01):
-        return tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.loss,var_list = self.train_vars)
+        return tf.train.AdagradOptimizer(learning_rate = learning_rate).minimize(self.loss,var_list = self.train_vars)
     def build(self):
         self.z = tf.transpose(self.z,[1,0,2])
         with tf.variable_scope("GEN"):
@@ -93,7 +93,7 @@ class Discriminator:
         b = tf.get_variable("b_"+name,[out])
         return tf.matmul(X,w)+b
     def optimize(self,lossTensor,learning_rate = 0.01):
-        return tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(lossTensor,var_list = self.train_vars)
+        return tf.train.AdagradOptimizer(learning_rate = learning_rate).minimize(lossTensor,var_list = self.train_vars)
     def build(self,reuse = False):
         if not reuse:
             inp = self.input

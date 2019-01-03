@@ -14,6 +14,16 @@ flags.DEFINE_integer("batch",100,"Length of each batch.")
 flags.DEFINE_integer("timestep",10,"Length of each sequence.")
 flags.DEFINE_integer("freq",100,"Frequency of printing of each training step.")
 flags.DEFINE_boolean("test",False,"run tester script")
+flags.DEFINE_boolean("gpu",False,"Run on GPU")
+
+def checkpoint(saver,sess,MODELFILE):
+    try:
+        os.remove(MODELFILE)
+    except:
+        pass
+    save_path = saver.save(sess,MODELFILE)
+    print("CHECKPOINT SAVED AT: %s"%save_path) 
+
 def main(argv):
     del argv
     BATCH_SIZE = FLAGS.batch
@@ -54,7 +64,10 @@ def main(argv):
     print("[PASSED]")
     merged = tf.summary.merge_all()
     saver = tf.train.Saver()
-    with tf.Session() as sess:
+    device = "/cpu:0"
+    if FLAGS.gpu:
+        device = "/gpu:0"
+    with tf.device(device) as _,tf.Session() as sess:
         writer = tf.summary.FileWriter(os.path.join(SUMMARY,"train"),sess.graph)
         print("INITIATE VARIABLES...",end = "")
         if not load:
@@ -95,6 +108,7 @@ def main(argv):
                         exit(0)
                     if batch_num%print_freq == 0:
                         print("EPOCH: %d\tGENERATOR LOSS: %f\tDISCRIMINATOR LOSS: %f"%(_epoch,_gLoss,_dLoss))
+                        checkpoint(saver,sess,MODELFILE)  
                     l = next(data)
                     if len(l)==2:
                         _epoch = l[1]
@@ -104,8 +118,6 @@ def main(argv):
                     batch_num = l[2]
             except StopIteration:
                 tqdm.close()
-                save_path = saver.save(sess,MODELFILE)
-                print("CHECKPOINT SAVED AT: %s"%save_path)
     writer.close()
 if __name__=="__main__":
     app.run(main)
