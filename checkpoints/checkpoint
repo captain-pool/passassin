@@ -1,0 +1,2 @@
+model_checkpoint_path: "/home/rick/passassin/saved.ckpt"
+all_model_checkpoint_paths: "/home/rick/passassin/saved.ckpt"
